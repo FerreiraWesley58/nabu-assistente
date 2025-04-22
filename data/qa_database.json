@@ -1,0 +1,54 @@
+{
+    "qa_pairs": [
+        {
+            "question": "Quais são as políticas de relacionamento com clientes?",
+            "answer": "Nossas políticas de relacionamento com clientes incluem:\n- Atendimento personalizado e flexível\n- Suporte técnico especializado\n- Transparência nas negociações\n- Resolução rápida de problemas\n- Compromisso com a qualidade do serviço",
+            "category": "relacionamento_cliente"
+        },
+        {
+            "question": "Como funciona o plano de carreira na empresa?",
+            "answer": "O plano de carreira oferece:\n- Oportunidades de crescimento profissional\n- Capacitação contínua em novas tecnologias\n- Ambiente estimulante para desenvolvimento\n- Avaliações periódicas de desempenho\n- Programas de mentoria",
+            "category": "recursos_humanos"
+        },
+        {
+            "question": "Quais são os benefícios oferecidos pela empresa?",
+            "answer": "A empresa oferece diversos benefícios:\n- Salários competitivos\n- Plano de saúde\n- Vale refeição/alimentação\n- Vale transporte\n- Auxílio educação\n- Programa de participação nos resultados\n- Seguro de vida",
+            "category": "recursos_humanos"
+        },
+        {
+            "question": "Como funciona a política de home office?",
+            "answer": "Nossa política de home office inclui:\n- Modelo híbrido flexível\n- Equipamentos fornecidos pela empresa\n- Auxílio internet\n- Horário flexível\n- Reuniões virtuais regulares para alinhamento",
+            "category": "recursos_humanos"
+        },
+        {
+            "question": "Quais são as políticas de responsabilidade social da empresa?",
+            "answer": "Nossas políticas de responsabilidade social incluem:\n- Projetos de sustentabilidade ambiental\n- Programas de inclusão social\n- Parcerias com ONGs\n- Voluntariado corporativo\n- Investimento em comunidades locais",
+            "category": "responsabilidade_social"
+        },
+        {
+            "question": "Como funciona o processo de férias?",
+            "answer": "O processo de férias funciona da seguinte forma:\n- 30 dias por ano de trabalho\n- Possibilidade de dividir em até 3 períodos\n- Agendamento com antecedência mínima de 30 dias\n- Pagamento antecipado\n- Adicional de 1/3 do salário",
+            "category": "recursos_humanos"
+        },
+        {
+            "question": "Quais são as políticas de segurança da informação?",
+            "answer": "Nossas políticas de segurança da informação incluem:\n- Uso de VPN para acesso remoto\n- Autenticação de dois fatores\n- Política de senhas fortes\n- Treinamentos regulares\n- Backup automático de dados",
+            "category": "seguranca"
+        },
+        {
+            "question": "Como funciona o programa de treinamento?",
+            "answer": "Nosso programa de treinamento oferece:\n- Cursos online e presenciais\n- Workshops técnicos\n- Certificações pagas pela empresa\n- Biblioteca digital\n- Mentoria individual",
+            "category": "desenvolvimento"
+        },
+        {
+            "question": "Quais são os valores da empresa?",
+            "answer": "Nossos valores fundamentais são:\n- Inovação e excelência\n- Ética e transparência\n- Respeito à diversidade\n- Compromisso com resultados\n- Responsabilidade social\n- Trabalho em equipe",
+            "category": "cultura"
+        },
+        {
+            "question": "Como funciona o processo de avaliação de desempenho?",
+            "answer": "O processo de avaliação de desempenho inclui:\n- Avaliações semestrais\n- Feedback contínuo\n- Definição de metas\n- Plano de desenvolvimento individual\n- Reconhecimento por resultados",
+            "category": "recursos_humanos"
+        }
+    ]
+} 
