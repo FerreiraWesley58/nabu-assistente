@@ -1,109 +1,102 @@
 import json
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 from sentence_transformers import SentenceTransformer
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
+import streamlit as st
+import torch
 
 class RAGManager:
-    def __init__(self, qa_file: str = "data/qa_database.json"):
-        """
-        Inicializa o gerenciador RAG.
-        
-        Args:
-            qa_file (str): Caminho para o arquivo JSON com as perguntas e respostas
-        """
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        self.qa_data = self._load_qa_data(qa_file)
-        self.question_embeddings = None
-        self._prepare_embeddings()
+    def __init__(self, max_documents: int = 2):  # Reduzido para 2 documentos
+        self.max_documents = max_documents
+        self.model = self._load_model()
+        self.qa_pairs = self._load_qa_pairs()
+        self.embeddings = self._compute_embeddings()
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model.to(self.device)
     
-    def _load_qa_data(self, qa_file: str) -> List[Dict]:
-        """
-        Carrega os dados de Q&A do arquivo JSON.
-        
-        Args:
-            qa_file (str): Caminho para o arquivo JSON
-            
-        Returns:
-            List[Dict]: Lista de dicionários com perguntas e respostas
-        """
+    @staticmethod
+    @st.cache_resource(ttl=3600)  # Cache por 1 hora
+    def _load_model():
+        model = SentenceTransformer('all-MiniLM-L6-v2', device='cuda' if torch.cuda.is_available() else 'cpu')
+        model.max_seq_length = 128  # Reduzir tamanho máximo da sequência
+        return model
+    
+    def _load_qa_pairs(self) -> List[Dict[str, str]]:
         try:
-            with open(qa_file, 'r', encoding='utf-8') as f:
+            with open('qa_pairs.json', 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                return data['qa_pairs']
-        except FileNotFoundError:
-            print(f"Arquivo {qa_file} não encontrado.")
-            return []
-        except json.JSONDecodeError:
-            print(f"Erro ao decodificar o arquivo JSON {qa_file}.")
+                return data.get('qa_pairs', [])
+        except:
             return []
     
-    def _prepare_embeddings(self) -> None:
-        """
-        Prepara os embeddings para todas as perguntas no banco de dados.
-        """
-        questions = [qa['question'] for qa in self.qa_data]
-        self.question_embeddings = self.model.encode(questions)
+    def _compute_embeddings(self) -> np.ndarray:
+        if not self.qa_pairs:
+            return np.array([])
+        
+        # Computar embeddings em batch com tamanho otimizado
+        texts = [qa['question'] for qa in self.qa_pairs]
+        return self.model.encode(texts, show_progress_bar=False, batch_size=32)
     
-    def find_similar_questions(self, query: str, threshold: float = 0.7) -> List[Tuple[int, float]]:
-        """
-        Encontra perguntas similares à consulta do usuário.
+    def get_relevant_context(self, query: str, max_documents: int = 2) -> str:
+        if not self.qa_pairs:
+            return ""
         
-        Args:
-            query (str): Pergunta do usuário
-            threshold (float): Limiar de similaridade mínima
-            
-        Returns:
-            List[Tuple[int, float]]: Lista de tuplas (índice, similaridade)
-        """
-        query_embedding = self.model.encode([query])
-        similarities = cosine_similarity(query_embedding, self.question_embeddings)[0]
+        # Computar embedding da query com batch
+        query_embedding = self.model.encode([query], show_progress_bar=False, batch_size=1)[0]
         
-        # Encontra índices das perguntas mais similares acima do threshold
-        similar_indices = [(i, sim) for i, sim in enumerate(similarities) if sim >= threshold]
-        return sorted(similar_indices, key=lambda x: x[1], reverse=True)
+        # Calcular similaridade com todos os documentos usando GPU se disponível
+        similarities = np.dot(self.embeddings, query_embedding) / (
+            np.linalg.norm(self.embeddings, axis=1) * np.linalg.norm(query_embedding)
+        )
+        
+        # Pegar os top-k documentos mais relevantes
+        top_k_indices = np.argsort(similarities)[-max_documents:][::-1]
+        
+        # Construir contexto
+        context = ""
+        for idx in top_k_indices:
+            if similarities[idx] > 0.3:  # Reduzido threshold para 0.3
+                qa = self.qa_pairs[idx]
+                context += f"Pergunta: {qa['question']}\nResposta: {qa['answer']}\n\n"
+        
+        return context.strip()
     
-    def get_answer(self, query: str, max_results: int = 3) -> List[Dict]:
-        """
-        Recupera as respostas mais relevantes para a pergunta do usuário.
+    def get_answer(self, query: str) -> List[Dict[str, Any]]:
+        if not self.qa_pairs:
+            return []
         
-        Args:
-            query (str): Pergunta do usuário
-            max_results (int): Número máximo de resultados a retornar
-            
-        Returns:
-            List[Dict]: Lista de dicionários com perguntas e respostas relevantes
-        """
-        similar_questions = self.find_similar_questions(query)
+        # Computar embedding da query com batch
+        query_embedding = self.model.encode([query], show_progress_bar=False, batch_size=1)[0]
         
+        # Calcular similaridade com todos os documentos usando GPU se disponível
+        similarities = np.dot(self.embeddings, query_embedding) / (
+            np.linalg.norm(self.embeddings, axis=1) * np.linalg.norm(query_embedding)
+        )
+        
+        # Pegar os top-k documentos mais relevantes
+        top_k_indices = np.argsort(similarities)[-self.max_documents:][::-1]
+        
+        # Retornar resultados
         results = []
-        for idx, similarity in similar_questions[:max_results]:
-            qa_pair = self.qa_data[idx]
-            results.append({
-                'question': qa_pair['question'],
-                'answer': qa_pair['answer'],
-                'category': qa_pair['category'],
-                'similarity': float(similarity)
-            })
+        for idx in top_k_indices:
+            if similarities[idx] > 0.3:  # Reduzido threshold para 0.3
+                qa = self.qa_pairs[idx]
+                results.append({
+                    'question': qa['question'],
+                    'answer': qa['answer'],
+                    'category': qa['category'],
+                    'similarity': float(similarities[idx])
+                })
         
         return results
 
     def add_qa_pair(self, question: str, answer: str, category: str) -> None:
-        """
-        Adiciona um novo par de pergunta e resposta ao banco de dados.
-        
-        Args:
-            question (str): Nova pergunta
-            answer (str): Resposta correspondente
-            category (str): Categoria da pergunta/resposta
-        """
-        self.qa_data.append({
+        self.qa_pairs.append({
             'question': question,
             'answer': answer,
             'category': category
         })
-        self._prepare_embeddings()  # Atualiza os embeddings
+        self.embeddings = self._compute_embeddings()
         
-        # Salva no arquivo
-        with open('data/qa_database.json', 'w', encoding='utf-8') as f:
-            json.dump({'qa_pairs': self.qa_data}, f, ensure_ascii=False, indent=4) 
+        with open('qa_pairs.json', 'w', encoding='utf-8') as f:
+            json.dump({'qa_pairs': self.qa_pairs}, f, ensure_ascii=False, indent=4) 

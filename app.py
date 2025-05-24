@@ -17,13 +17,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Adicionar animação de fundo
-add_background_animation()
+# Adicionar animação de fundo (reduzida para melhor performance)
+add_background_animation(particle_count=10)  # Reduzido para 10 partículas
 
-# Inicializar o RAG Manager
-@st.cache_resource
+# Inicializar o RAG Manager com cache otimizado
+@st.cache_resource(ttl=3600)  # Cache por 1 hora
 def get_rag_manager():
-    return RAGManager()
+    return RAGManager(max_documents=2)
 
 rag_manager = get_rag_manager()
 
@@ -236,15 +236,42 @@ def get_available_models():
     except:
         return []
 
-# Inicialização do modelo Ollama
-@st.cache_resource
+# Inicialização do modelo Ollama otimizado
+@st.cache_resource(ttl=3600)  # Cache por 1 hora
 def get_ollama_model(model_name="mistral"):
     callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
     return Ollama(
         model=model_name,
         callback_manager=callback_manager,
-        base_url="http://localhost:11434"
+        base_url="http://localhost:11434",
+        temperature=0.3,  # Reduzido para respostas mais diretas
+        num_ctx=512,      # Reduzido o contexto para melhor performance
+        num_thread=4,     # Otimizado para 4 threads
+        stop=["\n\n", "Human:", "Assistant:"]  # Adicionado stops para respostas mais curtas
     )
+
+# Cache de respostas frequentes
+@st.cache_data(ttl=3600)  # Cache por 1 hora
+def get_cached_response(query):
+    return None  # Implementar cache de respostas frequentes se necessário
+
+# Função principal de chat otimizada
+def chat_with_rag(user_input, model_name="mistral"):
+    # Obter respostas relevantes do RAG
+    rag_results = rag_manager.get_answer(user_input)
+    
+    if not rag_results:
+        return "Desculpe, não encontrei informações específicas sobre sua pergunta. Pode reformular ou perguntar sobre outro tema?"
+    
+    # Usar a resposta mais relevante
+    best_match = rag_results[0]
+    
+    # Se a similaridade for muito baixa, pedir para reformular
+    if best_match['similarity'] < 0.3:
+        return "Sua pergunta não está muito clara. Pode reformular ou ser mais específico?"
+    
+    # Retornar a resposta direta do RAG
+    return best_match['answer']
 
 # Verificar se o Ollama está rodando
 try:
@@ -388,43 +415,13 @@ if prompt := st.chat_input("Digite sua pergunta aqui..."):
     with st.chat_message("assistant"):
         with st.spinner("Pensando..."):
             try:
-                # Primeiro, buscar respostas similares no RAG
-                similar_answers = rag_manager.get_answer(prompt)
-                
-                if similar_answers and similar_answers[0]['similarity'] > 0.8:
-                    # Se encontrou uma resposta muito similar, usar diretamente
-                    response = similar_answers[0]['answer']
-                else:
-                    # Se não encontrou resposta similar o suficiente, usar o modelo
-                    model = get_ollama_model(model_name)
-                    
-                    # Adicionar contexto à pergunta
-                    context = ""
-                    if similar_answers:
-                        # Usar as respostas similares como contexto
-                        context = "Contexto relevante:\n"
-                        for qa in similar_answers:
-                            context += f"- {qa['question']}\n{qa['answer']}\n\n"
-                    
-                    enhanced_prompt = f"""
-                    Você é o Nabu, um assistente virtual corporativo especializado em processos internos, RH, 
-                    recrutamento, informativos e plano de carreira. Use o contexto abaixo (se disponível) para 
-                    ajudar a responder à pergunta de forma mais precisa e relevante.
-                    
-                    {context}
-                    
-                    Pergunta do usuário: {prompt}
-                    """
-                    
-                    response = model.invoke(enhanced_prompt)
-                
-                # Simular digitação para resposta mais natural
+                response = chat_with_rag(prompt, model_name)
                 st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 st.session_state.message_count += 1
             except Exception as e:
                 st.error(f"Desculpe, ocorreu um erro: {str(e)}")
-                st.info("Certifique-se de que o Ollama está rodando localmente na porta 11434 e que o modelo selecionado está disponível.")
+                st.info("Certifique-se de que o Ollama está rodando localmente na porta 11434.")
 
 # Adicionar botão para limpar o histórico
 if st.button("Limpar Histórico de Chat"):

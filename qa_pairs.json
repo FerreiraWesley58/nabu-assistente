@@ -1,0 +1,54 @@
+{
+    "qa_pairs": [
+        {
+            "question": "O que são processos internos da empresa?",
+            "answer": "Processos internos são o conjunto de atividades, procedimentos e fluxos de trabalho que garantem o funcionamento eficiente da empresa. Incluem desde processos administrativos até operacionais, como gestão de documentos, aprovações, fluxos de trabalho e procedimentos padrão.",
+            "category": "Processos internos"
+        },
+        {
+            "question": "Como funciona o processo de aprovação de documentos?",
+            "answer": "O processo de aprovação de documentos segue um fluxo padronizado: 1) Submissão do documento, 2) Análise inicial pelo gestor direto, 3) Revisão pelo departamento responsável, 4) Aprovação final pela diretoria. Todo o processo é registrado no sistema de gestão documental.",
+            "category": "Processos internos"
+        },
+        {
+            "question": "Quais são os benefícios oferecidos pela empresa?",
+            "answer": "A empresa oferece um pacote completo de benefícios: Plano de saúde, Vale refeição/alimentação, Vale transporte, Plano odontológico, Seguro de vida, PLR (Participação nos Lucros e Resultados), Auxílio educação e Gympass.",
+            "category": "Recursos Humanos"
+        },
+        {
+            "question": "Como funciona a política de home office?",
+            "answer": "A política de home office permite trabalho remoto até 3 dias por semana, mediante aprovação do gestor. É necessário ter um ambiente adequado para trabalho, conexão estável e disponibilidade nos horários de reunião. O registro de horas é feito através do sistema de ponto digital.",
+            "category": "Recursos Humanos"
+        },
+        {
+            "question": "Como funciona o processo de recrutamento?",
+            "answer": "O processo de recrutamento segue as etapas: 1) Análise do currículo, 2) Entrevista com RH, 3) Teste técnico, 4) Entrevista com gestor, 5) Dinâmica de grupo (quando aplicável), 6) Proposta e contratação. Todo o processo é realizado através do nosso sistema de ATS.",
+            "category": "Recrutamento"
+        },
+        {
+            "question": "Quais são os critérios de seleção?",
+            "answer": "Os critérios de seleção incluem: Experiência na área, Formação acadêmica, Habilidades técnicas, Soft skills, Compatibilidade cultural, Disponibilidade e Expectativa salarial. Cada vaga tem seus critérios específicos definidos no job description.",
+            "category": "Recrutamento"
+        },
+        {
+            "question": "Como funciona o plano de carreira?",
+            "answer": "O plano de carreira é estruturado em níveis: Júnior, Pleno, Sênior e Especialista. A progressão é baseada em: Desempenho, Tempo de casa, Conquistas, Desenvolvimento de habilidades e Contribuições para a empresa. Existem avaliações semestrais para acompanhamento do desenvolvimento.",
+            "category": "Plano de carreira"
+        },
+        {
+            "question": "Quais são as oportunidades de desenvolvimento?",
+            "answer": "A empresa oferece: Treinamentos internos, Cursos externos, Certificações, Mentoria, Programa de liderança, Workshops e Palestras. Existe um orçamento anual para desenvolvimento profissional de cada colaborador.",
+            "category": "Plano de carreira"
+        },
+        {
+            "question": "Como funciona o programa de estágio?",
+            "answer": "O programa de estágio tem duração de 2 anos, com possibilidade de efetivação. Inclui: Bolsa auxílio, Vale transporte, Plano de saúde, Acompanhamento de um mentor, Rotação entre áreas e Treinamentos específicos.",
+            "category": "Recrutamento"
+        },
+        {
+            "question": "Quais são os informativos importantes que preciso saber?",
+            "answer": "Informativos importantes incluem: Horário de trabalho (9h às 18h), Pausa para almoço (1h), Sistema de ponto, Política de vestimenta, Código de ética, Procedimentos de segurança e Normas da empresa. Todos estão disponíveis no portal do colaborador.",
+            "category": "Informativos"
+        }
+    ]
+} 
