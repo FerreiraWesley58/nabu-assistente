@@ -1,102 +1,191 @@
+import os
 import json
-from typing import Dict, List, Tuple, Any
-from sentence_transformers import SentenceTransformer
+import re
 import numpy as np
 import streamlit as st
-import torch
+from typing import List, Dict, Any, Tuple, Optional
+from collections import Counter
 
 class RAGManager:
-    def __init__(self, max_documents: int = 2):  # Reduzido para 2 documentos
+    def __init__(self, qa_file: str = 'qa_pairs.json', max_documents: int = 3):
+        self.qa_file = qa_file
         self.max_documents = max_documents
-        self.model = self._load_model()
-        self.qa_pairs = self._load_qa_pairs()
-        self.embeddings = self._compute_embeddings()
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model.to(self.device)
-    
-    @staticmethod
-    @st.cache_resource(ttl=3600)  # Cache por 1 hora
-    def _load_model():
-        model = SentenceTransformer('all-MiniLM-L6-v2', device='cuda' if torch.cuda.is_available() else 'cpu')
-        model.max_seq_length = 128  # Reduzir tamanho máximo da sequência
-        return model
-    
-    def _load_qa_pairs(self) -> List[Dict[str, str]]:
-        try:
-            with open('qa_pairs.json', 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return data.get('qa_pairs', [])
-        except:
-            return []
-    
-    def _compute_embeddings(self) -> np.ndarray:
-        if not self.qa_pairs:
-            return np.array([])
+        self.qa_pairs = []
+        self.keywords = []
         
-        # Computar embeddings em batch com tamanho otimizado
-        texts = [qa['question'] for qa in self.qa_pairs]
-        return self.model.encode(texts, show_progress_bar=False, batch_size=32)
+        # Carregar dados existentes
+        self._load_data()
+        
+        # Extrair keywords
+        self.keywords = self._extract_keywords()
+    
+    def _load_data(self) -> None:
+        try:
+            if os.path.exists(self.qa_file):
+                with open(self.qa_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if isinstance(data, dict) and 'qa_pairs' in data:
+                        self.qa_pairs = data['qa_pairs']
+                    elif isinstance(data, list):
+                        self.qa_pairs = data
+                    else:
+                        self.qa_pairs = []
+            else:
+                self.qa_pairs = []
+        except Exception as e:
+            st.warning(f"Erro ao carregar dados: {str(e)}")
+            self.qa_pairs = []
+    
+    def _extract_keywords(self) -> List[Counter]:
+        keywords = []
+        for qa in self.qa_pairs:
+            # Normalizar texto
+            text = qa['question'].lower()
+            # Remover pontuações
+            text = re.sub(r'[^\w\s]', '', text)
+            # Extrair palavras com mais de 3 caracteres
+            words = [word for word in text.split() if len(word) > 3]
+            # Contar frequência das palavras
+            word_counts = Counter(words)
+            keywords.append(word_counts)
+        return keywords
+    
+    def _compute_similarity(self, query: str) -> List[float]:
+        if not self.qa_pairs or not self.keywords:
+            return []
+        
+        # Normalizar query
+        query = query.lower()
+        query = re.sub(r'[^\w\s]', '', query)
+        query_words = [word for word in query.split() if len(word) > 3]
+        
+        if not query_words:
+            return [0] * len(self.qa_pairs)
+        
+        # Contar frequência das palavras na query
+        query_counts = Counter(query_words)
+        
+        # Calcular similaridade com cada documento
+        similarities = []
+        for doc_counts in self.keywords:
+            if not doc_counts:
+                similarities.append(0)
+                continue
+                
+            # Calcular interseção de palavras
+            intersection = sum((query_counts & doc_counts).values())
+            # Calcular união de palavras
+            union = sum(query_counts.values()) + sum(doc_counts.values()) - intersection
+            
+            # Similaridade de Jaccard ponderada
+            if union > 0:
+                similarities.append(intersection / union)
+            else:
+                similarities.append(0)
+        
+        return similarities
     
     def get_relevant_context(self, query: str, max_documents: int = 2) -> str:
         if not self.qa_pairs:
             return ""
         
-        # Computar embedding da query com batch
-        query_embedding = self.model.encode([query], show_progress_bar=False, batch_size=1)[0]
-        
-        # Calcular similaridade com todos os documentos usando GPU se disponível
-        similarities = np.dot(self.embeddings, query_embedding) / (
-            np.linalg.norm(self.embeddings, axis=1) * np.linalg.norm(query_embedding)
-        )
-        
-        # Pegar os top-k documentos mais relevantes
-        top_k_indices = np.argsort(similarities)[-max_documents:][::-1]
-        
-        # Construir contexto
-        context = ""
-        for idx in top_k_indices:
-            if similarities[idx] > 0.3:  # Reduzido threshold para 0.3
-                qa = self.qa_pairs[idx]
-                context += f"Pergunta: {qa['question']}\nResposta: {qa['answer']}\n\n"
-        
-        return context.strip()
+        try:
+            # Calcular similaridade com todos os documentos
+            similarities = self._compute_similarity(query)
+            
+            if not similarities:
+                return ""
+                
+            # Converter para array numpy para usar argsort
+            similarities = np.array(similarities)
+            
+            # Pegar os top-k documentos mais relevantes
+            top_k_indices = np.argsort(similarities)[-max_documents:][::-1]
+            
+            # Construir contexto
+            context = ""
+            for idx in top_k_indices:
+                if similarities[idx] > 0.1:  # Threshold para similaridade
+                    qa = self.qa_pairs[idx]
+                    context += f"Pergunta: {qa['question']}\nResposta: {qa['answer']}\n\n"
+            
+            return context.strip()
+        except Exception as e:
+            st.warning(f"Erro ao obter contexto relevante: {str(e)}")
+            # Fallback: retornar primeiro documento se existir
+            if self.qa_pairs:
+                qa = self.qa_pairs[0]
+                return f"Pergunta: {qa['question']}\nResposta: {qa['answer']}"
+            return ""
     
     def get_answer(self, query: str) -> List[Dict[str, Any]]:
         if not self.qa_pairs:
             return []
         
-        # Computar embedding da query com batch
-        query_embedding = self.model.encode([query], show_progress_bar=False, batch_size=1)[0]
-        
-        # Calcular similaridade com todos os documentos usando GPU se disponível
-        similarities = np.dot(self.embeddings, query_embedding) / (
-            np.linalg.norm(self.embeddings, axis=1) * np.linalg.norm(query_embedding)
-        )
-        
-        # Pegar os top-k documentos mais relevantes
-        top_k_indices = np.argsort(similarities)[-self.max_documents:][::-1]
-        
-        # Retornar resultados
-        results = []
-        for idx in top_k_indices:
-            if similarities[idx] > 0.3:  # Reduzido threshold para 0.3
-                qa = self.qa_pairs[idx]
+        try:
+            # Calcular similaridade com todos os documentos
+            similarities = self._compute_similarity(query)
+            
+            if not similarities:
+                return []
+                
+            # Converter para array numpy para usar argsort
+            similarities = np.array(similarities)
+            
+            # Pegar os top-k documentos mais relevantes
+            top_k_indices = np.argsort(similarities)[-self.max_documents:][::-1]
+            
+            # Retornar resultados
+            results = []
+            for idx in top_k_indices:
+                if similarities[idx] > 0.1:  # Threshold para similaridade
+                    qa = self.qa_pairs[idx]
+                    results.append({
+                        'question': qa['question'],
+                        'answer': qa['answer'],
+                        'category': qa.get('category', 'geral'),
+                        'similarity': float(similarities[idx])
+                    })
+            
+            # Se não encontrou nada, retornar resposta padrão
+            if not results and self.qa_pairs:
+                qa = self.qa_pairs[0]
                 results.append({
                     'question': qa['question'],
-                    'answer': qa['answer'],
-                    'category': qa['category'],
-                    'similarity': float(similarities[idx])
+                    'answer': "Desculpe, não encontrei uma resposta específica para sua pergunta. Tente reformular ou perguntar sobre outro tema.",
+                    'category': qa.get('category', 'geral'),
+                    'similarity': 0.1
                 })
-        
-        return results
-
-    def add_qa_pair(self, question: str, answer: str, category: str) -> None:
-        self.qa_pairs.append({
-            'question': question,
-            'answer': answer,
-            'category': category
-        })
-        self.embeddings = self._compute_embeddings()
-        
-        with open('qa_pairs.json', 'w', encoding='utf-8') as f:
-            json.dump({'qa_pairs': self.qa_pairs}, f, ensure_ascii=False, indent=4) 
+                
+            return results
+        except Exception as e:
+            st.warning(f"Erro ao obter resposta: {str(e)}")
+            # Fallback: retornar resposta genérica
+            return [{
+                'question': query,
+                'answer': "Desculpe, estou enfrentando dificuldades técnicas. Tente novamente mais tarde.",
+                'category': 'erro',
+                'similarity': 0.0
+            }]
+  
+    def add_qa_pair(self, question: str, answer: str, category: str = 'geral') -> bool:
+        try:
+            # Adicionar novo par de QA
+            new_qa = {
+                'question': question,
+                'answer': answer,
+                'category': category
+            }
+            self.qa_pairs.append(new_qa)
+            
+            # Atualizar keywords para o novo par
+            self.keywords = self._extract_keywords()
+            
+            # Salvar dados
+            with open(self.qa_file, 'w', encoding='utf-8') as f:
+                json.dump(self.qa_pairs, f, ensure_ascii=False, indent=4)
+                
+            return True
+        except Exception as e:
+            st.warning(f"Erro ao adicionar par de QA: {str(e)}")
+            return False

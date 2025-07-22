@@ -1,3 +1,8 @@
+import os
+# Forçar o uso da CPU antes de importar o PyTorch ou SentenceTransformer
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["TORCH_DEVICE"] = "cpu"
+
 import streamlit as st
 import requests
 import json
@@ -239,16 +244,20 @@ def get_available_models():
 # Inicialização do modelo Ollama otimizado
 @st.cache_resource(ttl=3600)  # Cache por 1 hora
 def get_ollama_model(model_name="mistral"):
-    callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
-    return Ollama(
-        model=model_name,
-        callback_manager=callback_manager,
-        base_url="http://localhost:11434",
-        temperature=0.3,  # Reduzido para respostas mais diretas
-        num_ctx=512,      # Reduzido o contexto para melhor performance
-        num_thread=4,     # Otimizado para 4 threads
-        stop=["\n\n", "Human:", "Assistant:"]  # Adicionado stops para respostas mais curtas
-    )
+    try:
+        callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
+        return Ollama(
+            model=model_name,
+            callback_manager=callback_manager,
+            base_url="http://localhost:11434",
+            temperature=0.3,  # Reduzido para respostas mais diretas
+            num_ctx=512,      # Reduzido o contexto para melhor performance
+            num_thread=4,     # Otimizado para 4 threads
+            stop=["\n\n", "Human:", "Assistant:"]  # Adicionado stops para respostas mais curtas
+        )
+    except Exception as e:
+        st.warning(f"Erro ao inicializar o modelo Ollama: {str(e)}")
+        return None
 
 # Cache de respostas frequentes
 @st.cache_data(ttl=3600)  # Cache por 1 hora
@@ -257,36 +266,46 @@ def get_cached_response(query):
 
 # Função principal de chat otimizada
 def chat_with_rag(user_input, model_name="mistral"):
-    # Obter respostas relevantes do RAG
-    rag_results = rag_manager.get_answer(user_input)
-    
-    if not rag_results:
-        return "Desculpe, não encontrei informações específicas sobre sua pergunta. Pode reformular ou perguntar sobre outro tema?"
-    
-    # Usar a resposta mais relevante
-    best_match = rag_results[0]
-    
-    # Se a similaridade for muito baixa, pedir para reformular
-    if best_match['similarity'] < 0.3:
-        return "Sua pergunta não está muito clara. Pode reformular ou ser mais específico?"
-    
-    # Retornar a resposta direta do RAG
-    return best_match['answer']
+    try:
+        # Obter respostas relevantes do RAG
+        rag_results = rag_manager.get_answer(user_input)
+        
+        if not rag_results:
+            return "Desculpe, não encontrei informações específicas sobre sua pergunta. Pode reformular ou perguntar sobre outro tema?"
+        
+        # Usar a resposta mais relevante
+        best_match = rag_results[0]
+        
+        # Se a similaridade for muito baixa, pedir para reformular (threshold reduzido para 0.2)
+        if best_match['similarity'] < 0.2:
+            return "Sua pergunta não está muito clara. Pode reformular ou ser mais específico?"
+        
+        # Retornar a resposta direta do RAG
+        return best_match['answer']
+    except Exception as e:
+        st.error(f"Erro ao processar sua pergunta: {str(e)}")
+        return "Desculpe, estou enfrentando dificuldades técnicas. Por favor, tente novamente mais tarde ou reformule sua pergunta."
 
 # Verificar se o Ollama está rodando
 try:
-    requests.get("http://localhost:11434/api/tags")
-    ollama_running = True
-except:
+    response = requests.get("http://localhost:11434/api/tags")
+    if response.status_code == 200:
+        ollama_running = True
+    else:
+        ollama_running = False
+        st.error(f"O servidor Ollama retornou código de status {response.status_code}. Por favor, verifique se o servidor está funcionando corretamente.")
+        st.warning("Continuando sem o Ollama. Algumas funcionalidades podem não estar disponíveis.")
+except Exception as e:
     ollama_running = False
-    st.error("O servidor Ollama não está rodando. Por favor, inicie o servidor com 'ollama serve'")
-    st.stop()
+    st.error(f"Não foi possível conectar ao servidor Ollama: {str(e)}")
+    st.warning("Continuando sem o Ollama. Algumas funcionalidades podem não estar disponíveis.")
 
 # Verificar modelos disponíveis
 available_models = get_available_models()
 if not available_models:
     st.warning("Nenhum modelo encontrado no Ollama. Por favor, baixe um modelo com 'ollama pull mistral' ou outro modelo de sua preferência.")
-    st.stop()
+    available_models = ["mistral"]  # Usar um modelo padrão para continuar
+    st.warning("Continuando com o modelo padrão. Algumas funcionalidades podem não estar disponíveis.")
 
 # Título e descrição com animação
 st.markdown("<h1>🤖 Nabu - Seu Assistente Corporativo</h1>", unsafe_allow_html=True)
@@ -432,6 +451,6 @@ if st.button("Limpar Histórico de Chat"):
 # Adicionar rodapé
 st.markdown("""
 <div style="text-align: center; margin-top: 2rem; padding: 1rem; background: rgba(255, 255, 255, 0.7); border-radius: 10px;">
-    <p>Desenvolvido com ❤️ por Wesley Ferreira | Nabu - Assistente Virtual Corporativo</p>
+    <p>Desenvolvido por Wesley Ferreira | Nabu - Assistente Virtual Corporativo</p>
 </div>
-""", unsafe_allow_html=True) 
+""", unsafe_allow_html=True)
